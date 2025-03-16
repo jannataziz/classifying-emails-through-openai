@@ -1,9 +1,11 @@
-# Run the following cells first
-# Install necessary packages
-
 # Import required libraries
 import pandas as pd
-from llama_cpp import Llama
+import openai
+import os
+from dotenv import load_dotenv
+from openai import OpenAI
+
+load_dotenv()
 
 # Load the email dataset
 emails_df = pd.read_csv('email_categories_data.csv')
@@ -11,36 +13,53 @@ emails_df = pd.read_csv('email_categories_data.csv')
 print("Preview of our email dataset:")
 print(emails_df)
 
-prompt= """ You need to classify emails into Priority,Updates and Permissions like below examples given:
+load_dotenv()
+
+openai.api_key= os.environ["OPENAI_API_KEY"]
+
+prompt= """ You are an email classifier.Your task is to classify each email into exactly one category:Priority,Updates, or Promotions. 
+Only response with one word: Priority, Updates, or Promotions.  
+
+Rules:
+- Priority: Urgent matters, meetings, deadlines, and important team communications.
+- Updates: General information, newsletters, product launches, non-urgent announcements
+- Promotions: Sales ,marketing offers , advertisements,deals
+
+Below are some examples to help you understand how to classify emails:
 Example 1:
 Email: Server Maintenance Required.
-Response: Priority
+Classification: Priority
 
 Example 2:
 Email: New Product Launch Invitation
-Response: Updates
+Classification: Updates
 
 Example 3:
 Email: Flash Sale - 24 Hours Only!
-Response: Promotions
+Classification: Promotions
 
-Now classify this email whether its priority, promotions or updates:
-Email: 
- """
-llm=Llama(model_path="model.gguf")
+Classify this email into either Priority, Pomotions or Updates:
+Email: {message}
+Classification: """
 
-def process_email(llm,message,prompt):
+def process_email(message,prompt):
     input_prompt=f"{prompt}{message}"
-    response=llm.create_completion(input_prompt,max_tokens=5,temperature=0.1)
-    print(response)
-    model_output=response['choices'][0]['text'].split(' ')
-    return model_output[1]
+    client=OpenAI(api_key=openai.api_key)
+    response= client.chat.completions.create(
+        model='gpt-4-turbo',
+        messages=[{'role':'system', 'content':'You are an AI email classifier.'},
+                  {'role':'user','content':input_prompt}],
+    )
+    data = response.choices[0].message.content
+    print(data)
+    model_output=data.split(":")[0].strip()
+    return model_output
 results=[]
 test_emails=emails_df[3:7]
 for index,row in test_emails.iterrows():
     email_content=row['email_content']
     expected_category=row['expected_category']
-    output=process_email(llm,email_content,prompt)
+    output=process_email(email_content,prompt)
     results.append({
         'email_content': email_content,
         'expected_category': expected_category,
@@ -48,5 +67,4 @@ for index,row in test_emails.iterrows():
     })
 
     results_df = pd.DataFrame(results)
-
-    print(results_df)
+print(results_df)
