@@ -1,1 +1,1 @@
-# classifying-emails-through-llama
+# classifying-emails-through-openai
